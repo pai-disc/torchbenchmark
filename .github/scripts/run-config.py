@@ -11,6 +11,7 @@ import argparse
 import subprocess
 import itertools
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import List, Optional
 
@@ -23,6 +24,21 @@ with add_path(REPO_DIR):
     from torchbenchmark import _list_model_paths
     from utils.cuda_utils import prepare_cuda_env, install_pytorch_nightly
 
+NAME_MAP = {
+    "backend-torchscript-no-ofi": "script",
+    "backend-blade": "disc",
+    "backend-blade-trt": "blade",
+    "torchdynamo-eager": "dynamo-eager",
+    "torchdynamo-ts": "dynamo-script",
+    "torchdynamo-ts_nvfuser" : "dynamo-nvfuser",
+    "torchdynamo-blade_optimize_dynamo": "dynamo-disc",
+    "torchdynamo-blade_optimize_dynamo-trt": "dynamo-blade",
+    "torchdynamo-cudagraphs": "dynamo-cudagraphs",
+    "torchdynamo-onnxrt_cpu": "dynamo-onnxrt_cpu",
+    "torchdynamo-ipex": "dynamo-ipex",
+    "torchdynamo-ofi": "dynamo-ofi",
+    "torchdynamo-inductor": "inductor",
+}
 @dataclass
 class BenchmarkModelConfig:
     models: Optional[List[str]]
@@ -30,6 +46,7 @@ class BenchmarkModelConfig:
     test: str
     batch_size: Optional[int]
     cuda_version: Optional[str]
+    precision: Optional[str]
     args: List[str]
     rewritten_option: str
 
@@ -40,7 +57,7 @@ def rewrite_option(option: List[str]) -> str:
     if option == ['']:
         return "eager"
     else:
-        return "-".join(out)
+        return NAME_MAP["-".join(out)]
 
 def get_models(config) -> Optional[str]:
     # if the config doesn't specify the 'models' key,
@@ -48,22 +65,15 @@ def get_models(config) -> Optional[str]:
     if not "models" in config:
         return None
     # get list of models
-    models = list(map(lambda x: os.path.basename(x), _list_model_paths()))
-    enabled_models = []
-    for model_pattern in config["models"]:
-        r = re.compile(model_pattern)
-        matched_models = list(filter(lambda x: r.match(x), models))
-        enabled_models.extend(matched_models)
-    assert enabled_models, f"The model patterns you specified {config['models']} does not match any model. Please double check."
-    return enabled_models
-
-def get_subrun_key(subrun_key):
-    return "-".join(subrun_key)
+    return config["models"]
 
 def get_cuda_versions(config):
     if not "cuda_version" in config:
         return [None]
     return config["cuda_version"]
+
+def get_subrun_key(subrun_key):
+    return "-".join(subrun_key)
 
 def get_tests(config):
     if not "test" in config:
@@ -80,14 +90,20 @@ def get_batch_sizes(config):
         return [None]
     return config["batch_size"]
 
-def get_subrun(device, test, batch_size, cuda_version):
-    if not batch_size and not cuda_version:
-        return (device, test)
-    if not batch_size:
-        return (device, test, f"cuda_{cuda_version}")
-    if not cuda_version:
-        return (device, test, f"bs_{batch_size}")
-    return (device, test, f"bs_{batch_size}", f"cuda_{cuda_version}")
+def get_precisions(config):
+    if not "precision" in config:
+        return [""]
+    return config["precision"]
+
+def get_subrun(device, test, batch_size, cuda_version, precision):
+    subrun = [test, device]
+    if batch_size:
+        subrun.append(f"bs_{batch_size}")
+    if cuda_version:
+        subrun.append(f"cuda_{cuda_version}")
+    if precision:
+        subrun.append(precision)
+    return tuple(subrun)
 
 def parse_bmconfigs(repo_path: Path, config_name: str) -> List[BenchmarkModelConfig]:
     if not config_name.endswith(".yaml"):
@@ -104,15 +120,17 @@ def parse_bmconfigs(repo_path: Path, config_name: str) -> List[BenchmarkModelCon
     tests = get_tests(config)
     batch_sizes = get_batch_sizes(config)
     cuda_versions = get_cuda_versions(config)
+    precisions = get_precisions(config)
 
-    bm_matrix = [devices, tests, batch_sizes, cuda_versions]
-    for device, test, batch_size, cuda_version in itertools.product(*bm_matrix):
-        subrun = get_subrun(device, test, batch_size, cuda_version)
+    bm_matrix = [devices, tests, batch_sizes, cuda_versions, precisions]
+    for device, test, batch_size, cuda_version, precision in itertools.product(*bm_matrix):
+        subrun = get_subrun(device, test, batch_size, cuda_version, precision)
         out[subrun] = []
         for args in config["args"]:
             out[subrun].append(BenchmarkModelConfig(models=models, device=device, test=test, \
-                               batch_size=batch_size, cuda_version=cuda_version, args=args.split(" "), \
-                               rewritten_option=rewrite_option(args.split(" "))))
+                               batch_size=batch_size, cuda_version=cuda_version, precision=precision, \
+                               args=args.split(" "), rewritten_option=rewrite_option(args.split(" "))))
+
     return out
 
 def prepare_bmconfig_env(config: BenchmarkModelConfig, repo_path: Path, dryrun=False):
@@ -133,6 +151,9 @@ def run_bmconfig(config: BenchmarkModelConfig, repo_path: Path, output_path: Pat
     if config.models:
         cmd.append("-m")
         cmd.extend(config.models)
+    if config.precision:
+        cmd.append("--precision")
+        cmd.append(config.precision)
     if config.args != ['']:
         cmd.extend(config.args)
     output_dir = output_path.joinpath("json")
@@ -142,6 +163,58 @@ def run_bmconfig(config: BenchmarkModelConfig, repo_path: Path, output_path: Pat
     if dryrun:
         return
     subprocess.check_call(cmd, cwd=repo_path, env=run_env)
+
+def run_bmconfig_profiling(config: BenchmarkModelConfig, repo_path: Path, output_path: Path, dryrun=False):
+    nsys_path_cmd = ["which", "nsys"]
+    nsys_path = subprocess.run(nsys_path_cmd, stdout=subprocess.PIPE).stdout
+    if not nsys_path:
+        logging.error("nsys not found in PATH, profiling script not work!" \
+            "Nsys install guidelines can be found in https://developer.nvidia.com/blog/nvidia-nsight-systems-containers-cloud/")
+        return
+
+    run_sweep_cmd = [sys.executable, "run_sweep.py", "-d", config.device, "-t", config.test, "--is-profiling"]
+    if config.batch_size:
+        run_sweep_cmd.append("-b")
+        run_sweep_cmd.append(str(config.batch_size))
+    if config.precision:
+        run_sweep_cmd.append("--precision")
+        run_sweep_cmd.append(config.precision)
+    if config.args != ['']:
+        run_sweep_cmd.extend(config.args)
+    
+    # mkdir for profiling output
+    output_dir = output_path.joinpath("profiling")
+    output_dir.mkdir(exist_ok=True, parents=True)
+    run_sweep_cmd.append("-m")
+
+    # list profiling models
+    models = config.models or [os.path.basename(model_path) for model_path in _list_model_paths()]
+    for model in models:
+        run_sweep_cmd.append(model)
+        model_profiling_dir = output_dir.joinpath(model).absolute()
+        model_profiling_dir.mkdir(exist_ok=True, parents=True)
+        model_prefix = os.path.join(model_profiling_dir, f"{config.rewritten_option}")
+
+        # profiling cmd
+        profiling_cmd = ["nsys", "profile", "-f", "true", "--wait=primary", "-c", "cudaProfilerApi", "-o", model_prefix]
+
+        # stats command
+        stats_cmd = ["nsys", "stats", "--report", "gputrace", "-q", "-f", "csv", "-o", model_prefix, model_prefix + ".nsys-rep"]
+        # use parse script to gen gputrace.csv
+        parse_cmd = [sys.executable, "parse_nsys_result.py", model_prefix + "_gputrace.csv"]
+        try:
+            print(f"Now profiling benchmark command: {profiling_cmd + run_sweep_cmd}.", flush=True)
+            subprocess.run(profiling_cmd + run_sweep_cmd, cwd=repo_path)
+            print(f"Now stats benchmark command: {stats_cmd}.", flush=True)
+            subprocess.check_call(stats_cmd, cwd=repo_path)
+            print(f"Now parse benchmark command: {parse_cmd}.", flush=True)
+            with open(model_prefix + ".csv", "w") as fd:
+                subprocess.check_call(parse_cmd, cwd=repo_path, stdout=fd)
+        except subprocess.CalledProcessError:
+            pass
+
+        run_sweep_cmd.pop()
+ 
 
 def gen_output_csv(output_path: Path, base_key: str):
     result = analyze_result(output_path.joinpath("json").absolute(), base_key=base_key)
@@ -178,6 +251,9 @@ if __name__ == "__main__":
         subrun_path = output_path.joinpath(subrun_key)
         subrun_path.mkdir(exist_ok=True, parents=True)
         for bm in bmconfigs:
+            # could not together because profiling results is just one model
             run_bmconfig(bm, repo_path, subrun_path, args.dryrun)
+            if "cuda" in subrun:
+                run_bmconfig_profiling(bm, repo_path, subrun_path, args.dryrun)
         if not args.dryrun:
             gen_output_csv(subrun_path, base_key=bmconfigs[0].rewritten_option)

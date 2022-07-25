@@ -6,10 +6,17 @@ import contextlib
 import distutils.util
 from typing import List
 import torch
-import torch._dynamo as torchdynamo
+try:
+    import torch._dynamo as torchdynamo
+except ImportError:
+    import torchdynamo
 from torchbenchmark.util.model import is_staged_train_test
 import warnings
+import functools
+from typing import List
+from .blade import blade_optimize_dynamo
 
+TORCHDYNAMO_ROUNDS = 3
 def parse_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', dynamo_args: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     available_backends = torchdynamo.list_backends()
@@ -39,17 +46,34 @@ def parse_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', dy
         type=distutils.util.strtobool,
         default="false",
     )
+    parser.add_argument(
+        "--trt",
+        action='store_true',
+        help="use blade tensorrt backend",
+    )
     args, extra_args = parser.parse_known_args(dynamo_args)
     return args, extra_args
 
 def apply_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', args: argparse.Namespace, precision: str):
+    # torchdynamo.config.suppress_errors = True
+    torchdynamo.reset()
+    torchdynamo.utils.counters.clear()
+
     if args.torchdynamo == "fx2trt" and precision == "fp16":
         dynamo_optimizer = torchdynamo.optimize(torchdynamo.optimizations.backends.fx2trt_compiler_fp16)
+    elif "blade" in args.torchdynamo:
+        dynamo_optimizer = torchdynamo.optimize(functools.partial(blade_optimize_dynamo, enable_fp16=precision=="fp16", use_trt=args.trt))
+    elif "ipex" in args.torchdynamo and precision == "fp32":
+        dynamo_optimizer = torchdynamo.optimize(torchdynamo.optimizations.backends.ipex_fp32)
     else:
         dynamo_optimizer = torchdynamo.optimize(args.torchdynamo)
 
     if args.torchdynamo == "inductor":
-        import torch._inductor as torchinductor
+        try:
+            import torch._inductor as torchinductor
+        except ImportError:
+            import torchinductor
+            import torchinductor.config
         torchinductor.config.triton.cudagraphs = bool(args.torchinductor_cudagraph)
 
         # Setup torchinductor.config.triton.mm
@@ -64,13 +88,13 @@ def apply_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', ar
     if bool(args.dynamo_disable_optimizer_step):
         found_optimizer_step = False
         try:
-            model.cfg.optimizer.step = torch._dynamo.disable(model.cfg.optimizer.step)
+            model.cfg.optimizer.step = torchdynamo.disable(model.cfg.optimizer.step)
             found_optimizer_step = True
         except AttributeError:
             pass
 
         try:
-            model.optimizer.step = torch._dynamo.disable(model.optimizer.step)
+            model.optimizer.step = torchdynamo.disable(model.optimizer.step)
             found_optimizer_step = True
         except AttributeError:
             pass
@@ -98,3 +122,6 @@ def apply_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', ar
         model.add_context(lambda: optimize_ddp_ctx(True))
 
     torchdynamo.reset()
+    
+    for _ in range(TORCHDYNAMO_ROUNDS):
+        model.invoke()

@@ -39,7 +39,7 @@ def insert_if_nonexist(arr, k, loc=None):
     arr.insert(loc, k)
 
 # Result header
-# Model (<test>, <device>); <base arg>; <arg1>; <arg2>; ...; <argn>
+# Model; <base arg>; <arg1>; <arg2>; ...; <argn>
 def generate_header(result, base_key):
     header = []
     args = []
@@ -57,7 +57,16 @@ def generate_header(result, base_key):
                 insert_if_nonexist(args, f"{k} (correctness)")
                 insert_if_nonexist(args, f"{k} (latency)")
                 insert_if_nonexist(args, f"{k} (speedup)")
-    header.append(f"Model ({test}, {device})")
+                if "blade" in k or "disc" in k:
+                    # count torchdynamo subgraphs
+                    if k == "dynamo-blade":
+                        insert_if_nonexist(args, f"{k} (subgraphs)")
+                    # count blade clusters
+                    insert_if_nonexist(args, f"{k} (clusters)")
+                    # count blade compiled nodes
+                    insert_if_nonexist(args, f"{k} (compiled)")
+
+    header.append(f"Model")
     header.append(f"precision")
     header.append(f"batch size")
     header.extend(args)
@@ -89,18 +98,33 @@ def find_result_by_header(r, header, base_arg):
             return round(r[base_arg]["results"]["latency_ms"] / r[args]["results"]["latency_ms"], 3)
         else:
             return "N/A"
+    elif tp == "clusters":
+        if is_ok(r[args]):
+            return r[args]["results"]["clusters"]
+        else:
+            return "N/A"
+    elif tp == "subgraphs":
+        if is_ok(r[args]):
+            return r[args]["results"]["subgraphs"]
+        else:
+            return "N/A"
+    elif tp == "compiled":
+        if is_ok(r[args]):
+            return r[args]["results"]["blade_compiled_nodes"]
+        else:
+            return "N/A"
     else:
         assert False, f"Found unknown type {tp}"
 
 # Dump the result to csv, so that can be used in Google Sheets
 def dump_result(result, header, base_key):
-    s = [";".join(header) + "\n"]
+    s = [",".join(header) + "\n"]
     # sort models by their names in lowercase
     for k in sorted(result, key=lambda x: x[0].lower()):
         rt = [str(k[0]), str(result[k]["precision"]), str(result[k]["batch_size"])]
         for h in header[3:]:
             rt.append(str(find_result_by_header(result[k], split_header(h), base_key)))
-        s.append(";".join(rt) + "\n")
+        s.append(",".join(rt) + "\n")
     return "".join(s)
 
 def analyze_result(result_dir: str, base_key: str) -> str:
