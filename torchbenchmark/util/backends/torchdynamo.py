@@ -5,6 +5,8 @@ import argparse
 import functools
 from typing import List
 import torchdynamo
+from .blade import blade_optimize_dynamo
+
 
 def parse_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', dyamo_args: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
