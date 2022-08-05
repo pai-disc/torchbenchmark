@@ -103,10 +103,18 @@ class BenchmarkModel(metaclass=PostInitProcessor):
         apply_decoration_args(self, self.dargs)
         # apply optimization args
         if self.dynamo:
+            import torchdynamo
             from torchbenchmark.util.backends.torchdynamo import apply_torchdynamo_args
             apply_torchdynamo_args(self, self.opt_args, self.dargs.precision)
+            # if self.opt_args.torchdynamo == "blade_optimize_dynamo":
+            self.subgraphs = torchdynamo.utils.counters["stats"]["unique_graphs"]
+            self.clusters = torchdynamo.utils.counters["blade_clusters"]
+            # print(f"\nsubgraphs: {self.subgraphs}, clusters: {self.clusters}")
         else:
             apply_opt_args(self, self.opt_args, self.extra_args)
+            if self.opt_args.blade:
+                import torch_blade
+                self.clusters = torch_blade.mlir.num_engines(self.model)
         if should_check_correctness:
             # tensorrt or fp16 is known to generate less-accurate results
             # in this case, use more relaxed cosine similarity instead of torch.allclose
@@ -185,6 +193,7 @@ class BenchmarkModel(metaclass=PostInitProcessor):
             if self.test == "train":
                 self.train()
             elif self.test == "eval":
+                # breakpoint()
                 out = self.eval()
         return out
 

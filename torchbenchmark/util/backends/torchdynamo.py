@@ -8,6 +8,8 @@ import torchdynamo
 from .blade import blade_optimize_dynamo
 
 
+TORCHDYNAMO_ROUNDS = 3
+
 def parse_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', dyamo_args: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     available_backends = torchdynamo.list_backends()
@@ -19,8 +21,18 @@ def parse_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', dy
 
 
 def apply_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', args: argparse.Namespace, precision: str):
-    if args.torchdynamo == "fx2trt" and precision == "fp16":
+    torchdynamo.config.raise_on_backend_error = False
+    torchdynamo.reset()
+    torchdynamo.utils.counters.clear()
+
+    if args.torchdynamo in EXTRA_BACKENDS:
+        model.add_context(functools.partial(torchdynamo.optimize, EXTRA_BACKENDS[args.torchdynamo]))
+    elif args.torchdynamo == "fx2trt" and precision == "fp16":
         model.add_context(functools.partial(torchdynamo.optimize, torchdynamo.optimizations.backends.fx2trt_compiler_fp16))
     else:
         model.add_context(functools.partial(torchdynamo.optimize, args.torchdynamo))
-    torchdynamo.reset()
+    
+    for _ in range(TORCHDYNAMO_ROUNDS):
+        model.invoke()
+    model.run_contexts.pop()
+    model.add_context(torchdynamo.run)
