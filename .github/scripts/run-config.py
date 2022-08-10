@@ -163,10 +163,10 @@ def run_bmconfig_profiling(config: BenchmarkModelConfig, repo_path: Path, output
         model_prefix = os.path.join(model_profiling_dir, f"{config.rewritten_option}")
 
         # profiling cmd
-        profiling_cmd = [nsys_path, "profile", "-f", "true", "-c", "cudaProfilerApi", "-o", model_prefix]
+        profiling_cmd = ["nsys", "profile", "-f", "true", "-c", "cudaProfilerApi", "-o", model_prefix]
 
         # stats command
-        stats_cmd = [nsys_path, "stats", "--report", "gputrace", "-f", "csv", "-o", model_prefix, model_prefix + ".nsys-rep"]
+        stats_cmd = ["nsys", "stats", "--report", "gputrace", "-f", "csv", "-o", model_prefix, model_prefix + ".nsys-rep"]
         # use parse script to gen gputrace.csv
         parse_cmd = [sys.executable, "parse_nsys_result.py", model_prefix + "_gputrace.csv"]
         try:
