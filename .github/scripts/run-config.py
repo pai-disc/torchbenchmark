@@ -6,6 +6,7 @@ For example, the default config we use is `torchdynamo/eager-overhead`
 import re
 import sys
 import os
+from charset_normalizer import logging
 import yaml
 import argparse
 import subprocess
@@ -131,39 +132,46 @@ def run_bmconfig(config: BenchmarkModelConfig, repo_path: Path, output_path: Pat
     subprocess.check_call(cmd, cwd=repo_path)
 
 def run_bmconfig_profiling(config: BenchmarkModelConfig, repo_path: Path, output_path: Path, dryrun=False):
-    nsys_path = "/opt/nvidia/nsight-systems/2022.2.1/bin/nsys"
-    profiling_cmd = [nsys_path, "profile", "-o", "", "-f", "true", "-c", "cudaProfilerApi", sys.executable, "run_sweep.py", "-d", config.device, "-t", config.test, "--is-profiling"]
-    stats_cmd = [nsys_path, "stats", "--report", "gputrace", "-f", "csv", "-o"]
-    
-    if config.batch_size:
-        profiling_cmd.append("-b")
-        profiling_cmd.append(str(config.batch_size))
+    nsys_path_cmd = ["which", "nsys"]
+    nsys_path = subprocess.run(nsys_path_cmd, stdout=subprocess.PIPE).stdout
+    if not nsys_path:
+        logging.error("nsys not found in PATH, profiling script not work!" \
+            "Nsys install guidelines can be found in https://developer.nvidia.com/blog/nvidia-nsight-systems-containers-cloud/")
+        return
 
+    run_sweep_cmd = [sys.executable, "run_sweep.py", "-d", config.device, "-t", config.test, "--is-profiling"]
+    if config.batch_size:
+        run_sweep_cmd.append("-b")
+        run_sweep_cmd.append(str(config.batch_size))
     if config.precision:
-        profiling_cmd.append("--precision")
-        profiling_cmd.append(config.precision)
+        run_sweep_cmd.append("--precision")
+        run_sweep_cmd.append(config.precision)
     if config.args != ['']:
-        profiling_cmd.extend(config.args)
+        run_sweep_cmd.extend(config.args)
+    
+    # mkdir for profiling output
     output_dir = output_path.joinpath("profiling")
     output_dir.mkdir(exist_ok=True, parents=True)
+    run_sweep_cmd.append("-m")
+
+    # list profiling models
     models = config.models or [os.path.basename(model_path) for model_path in _list_model_paths()]
-    profiling_cmd.append("-m")
     for model in models:
-        
+        run_sweep_cmd.append(model)
         model_profiling_dir = output_dir.joinpath(model).absolute()
         model_profiling_dir.mkdir(exist_ok=True, parents=True)
         model_prefix = os.path.join(model_profiling_dir, f"{config.rewritten_option}")
 
-        profiling_cmd[3] = model_prefix
-        profiling_cmd.append(model)
+        # profiling cmd
+        profiling_cmd = [nsys_path, "profile", "-f", "true", "-c", "cudaProfilerApi", "-o", model_prefix]
 
-        stats_cmd.append(model_prefix)
-        stats_cmd.append(model_prefix + ".nsys-rep")
+        # stats command
+        stats_cmd = [nsys_path, "stats", "--report", "gputrace", "-f", "csv", "-o", model_prefix, model_prefix + ".nsys-rep"]
+        # use parse script to gen gputrace.csv
         parse_cmd = [sys.executable, "parse_nsys_result.py", model_prefix + "_gputrace.csv"]
-
         try:
-            print(f"Now profiling benchmark command: {profiling_cmd}.", flush=True)
-            subprocess.run(profiling_cmd, cwd=repo_path)
+            print(f"Now profiling benchmark command: {profiling_cmd + run_sweep_cmd}.", flush=True)
+            subprocess.run(profiling_cmd + run_sweep_cmd, cwd=repo_path)
             print(f"Now stats benchmark command: {stats_cmd}.", flush=True)
             subprocess.check_call(stats_cmd, cwd=repo_path)
             print(f"Now parse benchmark command: {parse_cmd}.", flush=True)
@@ -172,8 +180,7 @@ def run_bmconfig_profiling(config: BenchmarkModelConfig, repo_path: Path, output
         except subprocess.CalledProcessError:
             pass
 
-        profiling_cmd.pop()
-        stats_cmd = stats_cmd[:-2]
+        run_sweep_cmd.pop()
  
 
 def gen_output_csv(output_path: Path, base_key: str):

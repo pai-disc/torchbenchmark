@@ -197,7 +197,6 @@ class BenchmarkModel(metaclass=PostInitProcessor):
             if self.test == "train":
                 self.train()
             elif self.test == "eval":
-                # breakpoint()
                 out = self.eval()
         return out
 
