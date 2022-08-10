@@ -63,6 +63,8 @@ def generate_header(result, base_key):
                         insert_if_nonexist(args, f"{k} (subgraphs)")
                     # count blade clusters
                     insert_if_nonexist(args, f"{k} (clusters)")
+                    # count blade compiled nodes
+                    insert_if_nonexist(args, f"{k} (compiled)")
 
     header.append(f"Model ({test}, {device})")
     header.append(f"precision")
@@ -104,6 +106,11 @@ def find_result_by_header(r, header, base_arg):
     elif tp == "subgraphs":
         if is_ok(r[args]):
             return r[args]["results"]["subgraphs"]
+        else:
+            return "N/A"
+    elif tp == "compiled":
+        if is_ok(r[args]):
+            return r[args]["results"]["blade_compiled_nodes"]
         else:
             return "N/A"
     else:

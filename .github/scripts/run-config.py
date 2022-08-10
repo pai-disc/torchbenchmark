@@ -147,7 +147,6 @@ def run_bmconfig_profiling(config: BenchmarkModelConfig, repo_path: Path, output
     output_dir = output_path.joinpath("profiling")
     output_dir.mkdir(exist_ok=True, parents=True)
     models = config.models or [os.path.basename(model_path) for model_path in _list_model_paths()]
-    print(models)
     profiling_cmd.append("-m")
     for model in models:
         
@@ -202,6 +201,7 @@ if __name__ == "__main__":
         subrun_path = output_path.joinpath(subrun_key)
         subrun_path.mkdir(exist_ok=True, parents=True)
         for bm in bmconfigs:
+            # could not together because profiling results is just one model
             run_bmconfig(bm, repo_path, subrun_path, args.dryrun)
             run_bmconfig_profiling(bm, repo_path, subrun_path, args.dryrun)
         if not args.dryrun:

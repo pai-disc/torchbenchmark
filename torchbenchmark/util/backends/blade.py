@@ -5,6 +5,7 @@ import torch
 import torch_blade
 from contextlib import contextmanager
 from torch_blade import optimize as blade_optimize
+from torch_blade import mlir
 from typing import Tuple
 
 @contextmanager
@@ -18,7 +19,7 @@ def opt_disc_config():
 
 @create_backend
 def blade_optimize_dynamo(subgraph):
-    # print(subgraph.model.graph)
+
     with opt_disc_config(), torch.no_grad():
         optimized_model = blade_optimize(
             subgraph.model.eval(),
@@ -27,13 +28,9 @@ def blade_optimize_dynamo(subgraph):
         )
     if torch_blade.mlir.num_engines(optimized_model) == 0:
         logging.warning("blade none fusion group")
-
-    if not torchdynamo.utils.counters["blade_clusters"]:
-        torchdynamo.utils.counters["blade_clusters"] = []
-        
-    torchdynamo.utils.counters["blade_clusters"].append(
-        torch_blade.mlir.num_engines(optimized_model)
-    )
+    
+    torchdynamo.utils.counters["blade"]["clusters"] += mlir.num_engines(optimized_model)
+    torchdynamo.utils.counters["blade"]["compiled_nodes"] += mlir.num_compiled_nodes(optimized_model)
     
     # with open(f'model.code.py', 'a') as writer:
     #     writer.write(str(optimized_model.code))
