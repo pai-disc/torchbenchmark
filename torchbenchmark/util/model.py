@@ -118,7 +118,7 @@ class BenchmarkModel(metaclass=PostInitProcessor):
                 # could not use self.model directly! Some model has it's own get_module
                 model, _ = self.get_module()
                 self.clusters = mlir.num_engines(model)
-                self.blade_compiled_nodes = mlir.num_compiled_nodes(model)
+                self.blade_compiled_nodes = sum(mlir.num_compiled_nodes(model))
         if should_check_correctness:
             # tensorrt or fp16 is known to generate less-accurate results
             # in this case, use more relaxed cosine similarity instead of torch.allclose

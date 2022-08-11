@@ -30,7 +30,7 @@ def blade_optimize_dynamo(subgraph):
         logging.warning("blade none fusion group")
     
     torchdynamo.utils.counters["blade"]["clusters"] += mlir.num_engines(optimized_model)
-    torchdynamo.utils.counters["blade"]["compiled_nodes"] += mlir.num_compiled_nodes(optimized_model)
+    torchdynamo.utils.counters["blade"]["compiled_nodes"] += sum(mlir.num_compiled_nodes(optimized_model))
     
     # with open(f'model.code.py', 'a') as writer:
     #     writer.write(str(optimized_model.code))
