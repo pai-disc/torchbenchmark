@@ -16,6 +16,9 @@ def parse_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', dy
     parser.add_argument(
         "--torchdynamo", choices=available_backends, help="Specify torchdynamo backends"
     )
+    parser.add_argument(
+        "--trt", action='store_true', help="use blade trt backend"
+    )
     args = parser.parse_args(dyamo_args)
     return args
 
@@ -27,6 +30,9 @@ def apply_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', ar
 
     if args.torchdynamo == "fx2trt" and precision == "fp16":
         model.add_context(functools.partial(torchdynamo.optimize, torchdynamo.optimizations.backends.fx2trt_compiler_fp16))
+    elif "blade" in args.torchdynamo:
+        model.add_context(functools.partial(torchdynamo.optimize, \
+            functools.partial(blade_optimize_dynamo, enable_fp16=precision=="fp16", use_trt=args.trt)))
     else:
         model.add_context(functools.partial(torchdynamo.optimize, args.torchdynamo))
     
