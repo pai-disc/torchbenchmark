@@ -7,7 +7,6 @@ import yaml
 from pathlib import Path
 from typing import ContextManager, Optional, List, Tuple, Generator
 from torchbenchmark import REPO_PATH
-from torchbenchmark.util.backends import torch_trt
 from torchbenchmark.util.extra_args import check_correctness_p, parse_opt_args, apply_opt_args, \
                                            parse_decoration_args, apply_decoration_args
 from torchbenchmark.util.env_check import set_random_seed, correctness_check, stableness_check

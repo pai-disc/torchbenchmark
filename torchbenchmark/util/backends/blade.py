@@ -57,7 +57,6 @@ def blade(model: 'torchbenchmark.util.model.BenchmarkModel', backend_args: List[
     torch_config.enable_fp16 = model.dargs.precision == "fp16"
     if args.trt:
         torch_config.optimization_pipeline = torch_blade.tensorrt.backend_name()
-        # torch_config.enable_onnx_shape_white_list = False
     with torch_config, torch.no_grad():
         optimized_model = blade_optimize(
             module.eval(),
