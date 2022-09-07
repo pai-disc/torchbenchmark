@@ -22,6 +22,17 @@ REPO_DIR = str(Path(__file__).parent.parent.parent.resolve())
 with add_path(REPO_DIR):
     from torchbenchmark import _list_model_paths
 
+NAME_MAP = {
+    "backend-blade": "disc",
+    "backend-blade-trt": "blade",
+    "backend-torchscript": "ofi",
+    "fuser-fuser2-jit": "nvfuser",
+    "torchdynamo-eager": "dynamo-eager",
+    "torchdynamo-nvfuser" : "dynamo-nvfuser",
+    "torchdynamo-blade_optimize_dynamo": "dynamo-disc",
+    "torchdynamo-blade_optimize_dynamo-trt": "dynamo-blade",
+    "torchdynamo-cudagraphs": "dynamo-cudagraphs"
+}
 @dataclass
 class BenchmarkModelConfig:
     models: Optional[List[str]]
@@ -39,7 +50,7 @@ def rewrite_option(option: List[str]) -> str:
     if option == ['']:
         return "eager"
     else:
-        return "-".join(out)
+        return NAME_MAP["-".join(out)]
 
 def get_models(config) -> Optional[str]:
     # if the config doesn't specify the 'models' key,
