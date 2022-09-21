@@ -67,5 +67,7 @@ def blade(model: 'torchbenchmark.util.model.BenchmarkModel', backend_args: List[
             attr = getattr(module, attr_name, None)
             if isinstance(attr, int):
                 optimized_model._c._register_attribute(attr_name, torch._C.IntType.get(), attr)
+            else:
+                raise NotImplementedError(f"register_attribute for {attr_name} haven't been implemented")
 
     model.set_module(optimized_model)
