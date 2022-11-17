@@ -1,0 +1,97 @@
+import argparse
+import os
+import pandas as pd
+
+COMPARE_FIELDS = [
+    "disc (latency)",
+    "blade (latency)",
+    "dynamo-blade (latency)",
+    "dynamo-disc (latency)",
+]
+RELATED_DIFF_PERCENT = 3
+GITHUB_ISSUE_TEMPLATE = """
+TorchBench CI has detected a performance signal.
+
+Affected Tests:
+{results}
+
+detail data can be seen in {oss_dir}
+created by TorchBench CI automatically
+"""
+
+
+def try_cast_to_float(to_cast: str):
+    try:
+        to_cast = float(to_cast)
+    except:
+        pass
+    finally:
+        return to_cast
+
+
+def analyze_target(target):
+    result = []
+    baseline_file = f"{target}.csv"
+    current_run_file = os.path.join(target, "summary.csv")
+    assert os.path.exists(baseline_file) and os.path.exists(current_run_file)
+    baseline_csv, current_run_csv = pd.read_csv(baseline_file), pd.read_csv(
+        current_run_file
+    )
+    model_list = baseline_csv["Model(eval-cuda)"]
+    # if model list changes
+    if len(model_list) != len(current_run_csv["Model(eval-cuda)"]) or any(
+        model_list != current_run_csv["Model(eval-cuda)"]
+    ):
+        result.append("model list changes, please update baseline files")
+        return result
+
+    for index in range(len(baseline_csv)):
+        for field in COMPARE_FIELDS:
+            model_name = model_list[index]
+            baseline, current_run = (
+                baseline_csv.iloc[index][field],
+                current_run_csv.iloc[index][field],
+            )
+            baseline, current_run = try_cast_to_float(baseline), try_cast_to_float(
+                current_run
+            )
+            # both cannot run
+            if isinstance(baseline, str) and isinstance(current_run, str):
+                continue
+            elif isinstance(baseline, str) or isinstance(current_run, str):
+                result.append(
+                    f"\t- {model_name}[{field}] status changed, latency: {baseline}->{current_run}"
+                )
+            else:
+                diff = round((baseline - current_run) / baseline * 100, 4)
+                if abs(diff) > RELATED_DIFF_PERCENT:
+                    sign = "+" if diff > 0 else ""
+                    result.append(
+                        f"\t- {model_name}[{field}] {baseline}->{current_run}, {sign}{diff}%"
+                    )
+    return result
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-t", "--targets", nargs="+", default=[], help="Specify analysis target size"
+    )
+    parser.add_argument("-i", "--info", help="produce run info")
+    args = parser.parse_args()
+
+    need_issue = False
+    results = ""
+    for target in args.targets:
+        result = analyze_target(target)
+        if result:
+            need_issue = True
+            results += f"- {target}:\n"
+            results += "\n".join(result)
+    print(need_issue)
+    if need_issue:
+        issue_str = GITHUB_ISSUE_TEMPLATE.format(results=results, oss_dir=args.info)
+        print(issue_str)
+        f = open("ISSUE.md", "w")
+        f.write(issue_str)
+        f.close()
