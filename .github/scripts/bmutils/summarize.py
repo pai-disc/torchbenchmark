@@ -39,7 +39,7 @@ def insert_if_nonexist(arr, k, loc=None):
     arr.insert(loc, k)
 
 # Result header
-# Model(<test>-<device>); <base arg>; <arg1>; <arg2>; ...; <argn>
+# Model; <base arg>; <arg1>; <arg2>; ...; <argn>
 def generate_header(result, base_key):
     header = []
     args = []
@@ -66,7 +66,7 @@ def generate_header(result, base_key):
                     # count blade compiled nodes
                     insert_if_nonexist(args, f"{k} (compiled)")
 
-    header.append(f"Model({test}-{device})")
+    header.append(f"Model")
     header.append(f"precision")
     header.append(f"batch size")
     header.extend(args)
