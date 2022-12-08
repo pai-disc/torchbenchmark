@@ -24,6 +24,8 @@ args:
   # torchdynamo based
   - "--torchdynamo eager"
   - "--torchdynamo nvfuser"
+  - "--torchdynamo inductor"
+  - "--torchdynamo disc"
   - "--torchdynamo blade_optimize_dynamo"
   - "--torchdynamo blade_optimize_dynamo --trt"
   - "--torchdynamo cudagraphs"
