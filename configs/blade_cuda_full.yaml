@@ -12,16 +12,8 @@ precision:
   - "fp32"
 args:
   # empty argument means the default pytorch eager mode
-  - ""
   # script based
   - "--backend blade"
-  - "--backend blade --trt"
-  - "--backend torchscript" # ofi
-  - "--fuser fuser2 --jit"  # nvfuser
 
   # # torchdynamo based
-  - "--torchdynamo eager"
-  - "--torchdynamo nvfuser"
   - "--torchdynamo blade_optimize_dynamo"
-  - "--torchdynamo blade_optimize_dynamo --trt"
-  - "--torchdynamo cudagraphs"
