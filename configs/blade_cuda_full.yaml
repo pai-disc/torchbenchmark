@@ -11,6 +11,7 @@ precision:
   - "fp16"
   - "fp32"
 args:
+  - ""
   # empty argument means the default pytorch eager mode
   # script based
   - "--backend blade"
