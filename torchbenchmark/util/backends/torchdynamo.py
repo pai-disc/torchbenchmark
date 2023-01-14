@@ -56,6 +56,7 @@ def parse_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', dy
 
 def apply_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', args: argparse.Namespace, precision: str):
     # torchdynamo.config.suppress_errors = True
+    torchdynamo.config.DO_NOT_USE_legacy_non_fake_example_inputs = True
     torchdynamo.reset()
     torchdynamo.utils.counters.clear()
 
