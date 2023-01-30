@@ -173,6 +173,8 @@ def run_bmconfig_profiling(config: BenchmarkModelConfig, repo_path: Path, output
         return
 
     run_sweep_cmd = [sys.executable, "run_sweep.py", "-d", config.device, "-t", config.test, "--is-profiling"]
+    devnull = open(os.devnull, "w")
+    clean_cmd = "ps -ef | grep run_sweep.py | grep -v grep | awk '{print $2}' | xargs kill -9 &> /dev/null"
     if config.batch_size:
         run_sweep_cmd.append("-b")
         run_sweep_cmd.append(str(config.batch_size))
@@ -190,6 +192,8 @@ def run_bmconfig_profiling(config: BenchmarkModelConfig, repo_path: Path, output
     # list profiling models
     models = config.models or [os.path.basename(model_path) for model_path in _list_model_paths()]
     for model in models:
+        # make sure no zobie processes existed
+        subprocess.Popen(clean_cmd, shell=True, stderr=devnull)
         run_sweep_cmd.append(model)
         model_profiling_dir = output_dir.joinpath(model).absolute()
         model_profiling_dir.mkdir(exist_ok=True, parents=True)
@@ -204,7 +208,7 @@ def run_bmconfig_profiling(config: BenchmarkModelConfig, repo_path: Path, output
         parse_cmd = [sys.executable, "parse_nsys_result.py", model_prefix + "_gputrace.csv"]
         try:
             print(f"Now profiling benchmark command: {profiling_cmd + run_sweep_cmd}.", flush=True)
-            subprocess.run(profiling_cmd + run_sweep_cmd, cwd=repo_path)
+            subprocess.run(profiling_cmd + run_sweep_cmd, cwd=repo_path, timeout=30*60, stdout=devnull)
             print(f"Now stats benchmark command: {stats_cmd}.", flush=True)
             subprocess.check_call(stats_cmd, cwd=repo_path)
             print(f"Now parse benchmark command: {parse_cmd}.", flush=True)
@@ -212,8 +216,11 @@ def run_bmconfig_profiling(config: BenchmarkModelConfig, repo_path: Path, output
                 subprocess.check_call(parse_cmd, cwd=repo_path, stdout=fd)
         except subprocess.CalledProcessError:
             pass
-
+        except subprocess.TimeoutExpired:
+            pass
+        print("\n\n")
         run_sweep_cmd.pop()
+    devnull.close()
  
 
 def gen_output_csv(output_path: Path, base_key: str):
