@@ -159,12 +159,12 @@ def _run_model_test(model_path: pathlib.Path, test: str, device: str, jit: bool,
         status = f"{type(e).__name__}"
         error_message = str(e)
     finally:
-        print(f"[ {status} ]")
         result.status = status
         if error_message:
             result.results["error_message"] = error_message
         if status == "UserInterrupted":
             sys.exit(1)
+        print(result)
         return result
 
 if __name__ == "__main__":
