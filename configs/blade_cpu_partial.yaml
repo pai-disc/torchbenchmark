@@ -10,7 +10,6 @@ test:
 models:
   - "alexnet"
   - "attention_is_all_you_need_pytorch"
-  - "BERT_pytorch"
   - "hf_Bert"
   - "nvidia_deeprecommender"
   - "resnet18"
@@ -26,6 +25,6 @@ args:
   # torchdynamo based
   - "--torchdynamo eager"
   - "--torchdynamo blade_optimize_dynamo"
-  - "--torchdynamo onnxrt_cpu"
   - "--torchdynamo ts"
   - "--torchdynamo inductor"
+  - "--torchdynamo ofi"

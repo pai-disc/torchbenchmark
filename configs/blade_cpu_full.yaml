@@ -19,6 +19,6 @@ args:
   # torchdynamo based
   - "--torchdynamo eager"
   - "--torchdynamo blade_optimize_dynamo"
-  - "--torchdynamo onnxrt_cpu"
   - "--torchdynamo ts"
   - "--torchdynamo inductor"
+  - "--torchdynamo ofi"
