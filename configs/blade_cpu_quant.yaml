@@ -8,7 +8,7 @@ device:
 test:
   - "eval"
 models:
-  - "hf_Bert"
+  - "hf_Bert_mini"
 precision:
   # Quantization is enabled though blade arguments "--int8".
   # The origin module is also in fp32 precision.
