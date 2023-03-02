@@ -25,6 +25,7 @@ class_models = {
     'hf_Bert': (512, 512, 'BertConfig()', 'AutoModelForMaskedLM'),
     # see https://huggingface.co/bert-large-cased
     'hf_Bert_large': (512, 512, 'BertConfig(hidden_size=1024, num_hidden_layers=24, num_attention_heads=16)', 'AutoModelForMaskedLM'),
+    "hf_Bert_mini": (64, 64, 'AutoConfig.from_pretrained("prajjwal1/bert-mini")', 'AutoModelForSequenceClassification')
 }
 
 cpu_input_slice = {
