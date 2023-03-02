@@ -19,6 +19,7 @@ def parse_blade_args(args) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     # enable ofi by default
     parser.add_argument("--trt", action='store_true', help="use blade trt backend")
+    parser.add_argument("--int8", action='store_true', help="whether to do quantization optimization")
     args = parser.parse_args(args)
     return args
 
@@ -56,9 +57,9 @@ def blade_optimize_dynamo(subgraph, enable_fp16=False, use_trt=False):
 def blade(model: 'torchbenchmark.util.model.BenchmarkModel', backend_args: List[str]):
     args = parse_blade_args(backend_args)
     module, example_inputs = model.get_module()
-                                                          
     torch_config = torch_blade.config.Config()
     torch_config.enable_fp16 = model.dargs.precision in ["fp16", "amp"]
+    torch_config.enable_int8 = args.int8
     if args.trt:
         torch_config.optimization_pipeline = torch_blade.tensorrt.backend_name()
     with torch_config, torch.no_grad():
