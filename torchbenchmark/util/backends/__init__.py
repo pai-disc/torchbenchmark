@@ -34,5 +34,6 @@ def list_backends():
 # register the backends
 from .jit import torchscript
 from .blade import blade
+from .ipex_script import ipex_script
 
 __all__ = [list_backends, create_backend ]

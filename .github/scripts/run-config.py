@@ -28,6 +28,7 @@ NAME_MAP = {
     "backend-torchscript-no-ofi": "script",
     "backend-blade": "disc",
     "backend-blade-trt": "blade",
+    "backend-ipex_script": "ipex_script",
     "torchdynamo-eager": "dynamo-eager",
     "torchdynamo-ts": "dynamo-script",
     "torchdynamo-ts_nvfuser" : "dynamo-nvfuser",
