@@ -13,6 +13,9 @@ def ipex_script(model: 'torchbenchmark.util.model.BenchmarkModel', backend_args:
     elif model.dargs.precision == "int8-static":
         from intel_extension_for_pytorch.quantization import prepare, convert
         qconfig = ipex.quantization.default_static_qconfig
+        ## TODO: fix len > 1
+        if len(data) == 1:
+            data = data[0]
         prepared_model = prepare(module.eval(), qconfig, example_inputs=data, inplace=False)
         n_iter = 100
         for i in range(n_iter):

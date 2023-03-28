@@ -118,6 +118,9 @@ def parse_decoration_args(model: 'torchbenchmark.util.model.BenchmarkModel', ext
     return (dargs, opt_args)
 
 def apply_decoration_args(model: 'torchbenchmark.util.model.BenchmarkModel', dargs: argparse.Namespace):
+    if model.test == 'eval':
+        import torch
+        model.add_context(lambda: torch.no_grad())
     if dargs.channels_last:
         model.enable_channels_last()
     if dargs.precision == "fp16":
