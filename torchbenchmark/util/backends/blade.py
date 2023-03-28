@@ -2,7 +2,7 @@ import argparse
 from charset_normalizer import logging
 try:
     import torch._dynamo as torchdynamo
-    from torch._dynamo.backends import register_backend as dynamo_backend
+    from torch._dynamo.backends.registry import register_backend as dynamo_backend
 except ImportError:
     import torchdynamo
     from torchdynamo.optimizations.backends import create_backend as dynamo_backend

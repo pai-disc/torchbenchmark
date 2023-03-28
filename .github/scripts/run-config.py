@@ -35,7 +35,7 @@ NAME_MAP = {
     "torchdynamo-blade_optimize_dynamo": "dynamo-disc",
     "torchdynamo-blade_optimize_dynamo-trt": "dynamo-blade",
     "torchdynamo-cudagraphs": "dynamo-cudagraphs",
-    "torchdynamo-onnxrt_cpu": "dynamo-onnxrt_cpu",
+    "torchdynamo-onnxrt": "dynamo-onnxrt",
     "torchdynamo-ipex": "dynamo-ipex",
     "torchdynamo-ofi": "dynamo-ofi",
     "torchdynamo-inductor": "inductor",
