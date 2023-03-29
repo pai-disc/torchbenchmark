@@ -24,17 +24,26 @@ def parse_blade_args(args) -> argparse.Namespace:
     return args
 
 @dynamo_backend
-def blade_optimize_dynamo(subgraph, enable_fp16=False, use_trt=False):
+def blade_optimize_dynamo(subgraph, data=None, enable_fp16=False, use_trt=False):
     torch_config = torch_blade.config.Config()
     torch_config.enable_fp16 = enable_fp16
     if use_trt:
         torch_config.optimization_pipeline = torch_blade.tensorrt.backend_name()
-    with torch_config, torch.no_grad():
-        optimized_model = blade_optimize(
-            subgraph.model.eval(),
-            allow_tracing=True,
-            model_inputs=tuple(subgraph.example_inputs),
-        )
+    try:
+        import torch._dynamo as torchdynamo
+        with torch_config, torch.no_grad():
+            optimized_model = blade_optimize(
+                subgraph.eval(),
+                allow_tracing=True,
+                model_inputs=tuple(data)
+            )
+    except ImportError:
+        with torch_config, torch.no_grad():
+            optimized_model = blade_optimize(
+                subgraph.model.eval(),
+                allow_tracing=True,
+                model_inputs=tuple(subgraph.example_inputs),
+            )
     if use_trt:
         num_engines = tensorrt.num_engines
         num_compiled_nodes = tensorrt.num_compiled_nodes
