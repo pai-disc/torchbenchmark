@@ -5,6 +5,10 @@ from typing import List
 
 @create_backend                   
 def ipex_script(model: 'torchbenchmark.util.model.BenchmarkModel', backend_args: List[str]):
+    try:
+        import intel_extension_for_pytorch as ipex
+    except ImportError:
+        return
     module, data = model.get_module()
     if model.dargs.precision == "fp32":
         optimized_model = ipex.optimize(module.eval(), dtype=torch.float32)
