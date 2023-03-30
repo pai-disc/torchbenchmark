@@ -68,9 +68,9 @@ def apply_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', ar
     elif "ipex" in args.torchdynamo:
         if torch.__version__.find("1.13") != -1:
             if precision == "bfloat16" or precision == "amp":
-                dynamo_optimizer = torchdynamo.optimize(torchdynamo.optimizations.backends.bf16)
+                dynamo_optimizer = torchdynamo.optimize(torchdynamo.optimizations.backends.ipex_bf16)
             else:
-                dynamo_optimizer = torchdynamo.optimize(torchdynamo.optimizations.backends.fp32)
+                dynamo_optimizer = torchdynamo.optimize(torchdynamo.optimizations.backends.ipex_fp32)
         elif torch.__version__.find("2.0") != -1:
             dynamo_optimizer = torchdynamo.optimize("ipex")
     else:

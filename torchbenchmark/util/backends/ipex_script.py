@@ -1,4 +1,3 @@
-import intel_extension_for_pytorch as ipex
 from torchbenchmark.util.backends import create_backend
 import torch
 from typing import List
