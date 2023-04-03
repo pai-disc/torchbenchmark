@@ -65,8 +65,14 @@ def apply_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', ar
         dynamo_optimizer = torchdynamo.optimize(torchdynamo.optimizations.backends.fx2trt_compiler_fp16)
     elif "blade" in args.torchdynamo:
         dynamo_optimizer = torchdynamo.optimize(functools.partial(blade_optimize_dynamo, enable_fp16=precision=="fp16", use_trt=args.trt))
-    elif "ipex" in args.torchdynamo and precision == "fp32":
-        dynamo_optimizer = torchdynamo.optimize(torchdynamo.optimizations.backends.ipex_fp32)
+    elif "ipex" in args.torchdynamo:
+        if torch.__version__.find("1.13") != -1:
+            if precision == "bfloat16" or precision == "amp":
+                dynamo_optimizer = torchdynamo.optimize(torchdynamo.optimizations.backends.ipex_bf16)
+            else:
+                dynamo_optimizer = torchdynamo.optimize(torchdynamo.optimizations.backends.ipex_fp32)
+        elif torch.__version__.find("2.0") != -1:
+            dynamo_optimizer = torchdynamo.optimize("ipex")
     else:
         dynamo_optimizer = torchdynamo.optimize(args.torchdynamo)
 

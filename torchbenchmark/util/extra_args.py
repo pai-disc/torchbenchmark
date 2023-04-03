@@ -59,11 +59,13 @@ def check_precision(model: 'torchbenchmark.util.model.BenchmarkModel', precision
         return model.device == 'cuda' and hasattr(model, "enable_fp16_half")
     if precision == "tf32":
         return model.device == "cuda"
-    if precision == "amp":
-        if model.test == 'eval' and model.device == 'cuda':
+    if precision == "amp" or precision == "bfloat16":
+        if model.test == 'eval' and (model.device == 'cuda' or model.device == 'cpu'):
             return True
         if model.test == 'train' and model.device == 'cuda':
             return hasattr(model, 'enable_amp') or is_staged_train_test(model)
+    if precision == "int8-static" or precision == "int8-dynamic":
+        return model.device == 'cpu' and model.test == 'eval'
     assert precision == "fp32", f"Expected precision to be one of fp32, tf32, fp16, or amp, but get {precision}"
     return True
 
@@ -98,7 +100,7 @@ def parse_decoration_args(model: 'torchbenchmark.util.model.BenchmarkModel', ext
         default=None,
         help="Path to function that will apply distributed wrapping fn(model, dargs.distributed)",
     )
-    parser.add_argument("--precision", choices=["fp32", "tf32", "fp16", "amp"], default=get_precision_default(model), help="choose precisions from: fp32, tf32, fp16, or amp")
+    parser.add_argument("--precision", choices=["fp32", "tf32", "fp16", "amp", "bfloat16", "int8-static", "int8-dynamic"], default=get_precision_default(model), help="choose precisions from: fp32, tf32, fp16, amp, bfloat16, int8-static or int8-dynamic")
     parser.add_argument("--channels-last", action='store_true', help="enable channels-last memory layout")
     parser.add_argument("--skip_correctness", action='store_true', help="Skip correctness checks")
     dargs, opt_args = parser.parse_known_args(extra_args)
@@ -116,6 +118,9 @@ def parse_decoration_args(model: 'torchbenchmark.util.model.BenchmarkModel', ext
     return (dargs, opt_args)
 
 def apply_decoration_args(model: 'torchbenchmark.util.model.BenchmarkModel', dargs: argparse.Namespace):
+    if model.test == 'eval':
+        import torch
+        model.add_context(lambda: torch.no_grad())
     if dargs.channels_last:
         model.enable_channels_last()
     if dargs.precision == "fp16":
@@ -124,7 +129,14 @@ def apply_decoration_args(model: 'torchbenchmark.util.model.BenchmarkModel', dar
         import torch
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
+    elif dargs.precision == "bfloat16":
+        if model.test == 'eval' and model.device == 'cpu':
+            import torch
+            model.add_context(lambda: torch.cpu.amp.autocast(dtype=torch.bfloat16))
     elif dargs.precision == "amp":
+        if model.test == "eval" and model.device == "cpu":
+            import torch
+            model.add_context(lambda: torch.cpu.amp.autocast(dtype=torch.bfloat16))
         # model handles amp itself if it has 'enable_amp' callback function (e.g. pytorch_unet)
         if hasattr(model, "enable_amp"):
             model.enable_amp()
@@ -136,6 +148,8 @@ def apply_decoration_args(model: 'torchbenchmark.util.model.BenchmarkModel', dar
             assert is_staged_train_test(model), f"Expected model implements staged train test (forward, backward, optimizer)."
             import torch
             model.add_context(lambda: torch.cuda.amp.autocast(dtype=torch.float16), stage=TEST_STAGE.FORWARD)
+    elif dargs.precision.startswith("int8"):
+        None
     elif not dargs.precision == "fp32":
         assert False, f"Get an invalid precision option: {dargs.precision}. Please report a bug."
 
