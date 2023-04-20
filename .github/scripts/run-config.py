@@ -143,7 +143,7 @@ def prepare_bmconfig_env(config: BenchmarkModelConfig, repo_path: Path, dryrun=F
     install_pytorch_nightly(cuda_version=cuda_version, env=new_env, dryrun=dryrun)
     return new_env
 
-def run_bmconfig(config: BenchmarkModelConfig, repo_path: Path, output_path: Path, dryrun=False):
+def run_bmconfig(config: BenchmarkModelConfig, repo_path: Path, output_path: Path, dryrun=False, reuse_model=False):
     run_env = prepare_bmconfig_env(config, repo_path=repo_path, dryrun=dryrun)
     cmd = [sys.executable, "run_sweep.py", "-d", config.device, "-t", config.test]
     if config.batch_size:
@@ -155,6 +155,8 @@ def run_bmconfig(config: BenchmarkModelConfig, repo_path: Path, output_path: Pat
     if config.precision:
         cmd.append("--precision")
         cmd.append(config.precision)
+    if config.device == 'cpu' and reuse_model:
+        cmd.append("--reuse_model")
     if config.args != ['']:
         cmd.extend(config.args)
     output_dir = output_path.joinpath("json")
@@ -244,6 +246,7 @@ if __name__ == "__main__":
     parser.add_argument("--benchmark-repo", "-b", required=True, help="Specify the pytorch/benchmark repository location.")
     parser.add_argument("--output-dir", "-o", required=True, help="Specify the directory to save the outputs.")
     parser.add_argument("--dryrun", action="store_true", help="Dry run the script and don't run the benchmark.")
+    parser.add_argument("--reuse_model", action="store_true", help="Whether to save/reuse blade optimized model")
     args = parser.parse_args()
     repo_path = Path(args.benchmark_repo)
     assert repo_path.exists(), f"Path {args.benchmark_repo} doesn't exist. Exit."
@@ -260,7 +263,7 @@ if __name__ == "__main__":
         subrun_path.mkdir(exist_ok=True, parents=True)
         for bm in bmconfigs:
             # could not together because profiling results is just one model
-            run_bmconfig(bm, repo_path, subrun_path, args.dryrun)
+            run_bmconfig(bm, repo_path, subrun_path, args.dryrun, args.reuse_model)
             if "cuda" in subrun:
                 run_bmconfig_profiling(bm, repo_path, subrun_path, args.dryrun)
         if not args.dryrun:
