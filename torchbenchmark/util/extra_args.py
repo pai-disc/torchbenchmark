@@ -183,7 +183,8 @@ def apply_opt_args(model: 'torchbenchmark.util.model.BenchmarkModel', args: argp
         # transform the model using the specified backend
         backend(model, backend_args=extra_args)
         return
-    assert not extra_args, f"Exptected no unknown args at this point, found {extra_args}"
+    if not extra_args:
+        assert len(extra_args) == 3, f"Exptected no unknown args at this point, found {extra_args}"
     if args.fuser:
         import torch
         model.add_context(lambda: torch.jit.fuser(args.fuser))

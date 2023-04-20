@@ -156,7 +156,7 @@ class BenchmarkModel(metaclass=PostInitProcessor):
                 import torchdynamo
 
             from torchbenchmark.util.backends.torchdynamo import apply_torchdynamo_args
-            apply_torchdynamo_args(self, self.opt_args, self.dargs.precision)
+            apply_torchdynamo_args(self, self.opt_args, self.dargs.precision, self.extra_args)
             if self.opt_args.torchdynamo == "blade_optimize_dynamo":
                 self.subgraphs = torchdynamo.utils.counters["stats"]["unique_graphs"]
                 self.clusters = torchdynamo.utils.counters["blade"]["clusters"]

@@ -54,7 +54,7 @@ def parse_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', dy
     args, extra_args = parser.parse_known_args(dynamo_args)
     return args, extra_args
 
-def apply_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', args: argparse.Namespace, precision: str):
+def apply_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', args: argparse.Namespace, precision: str, extra_args: argparse.Namespace=None):
     # torchdynamo.config.suppress_errors = True
     if hasattr(torchdynamo.config, 'DO_NOT_USE_legacy_non_fake_example_inputs'):
         torchdynamo.config.DO_NOT_USE_legacy_non_fake_example_inputs = True
@@ -64,7 +64,7 @@ def apply_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', ar
     if args.torchdynamo == "fx2trt" and precision == "fp16":
         dynamo_optimizer = torchdynamo.optimize(torchdynamo.optimizations.backends.fx2trt_compiler_fp16)
     elif "blade" in args.torchdynamo:
-        dynamo_optimizer = torchdynamo.optimize(functools.partial(blade_optimize_dynamo, enable_fp16=precision=="fp16", use_trt=args.trt))
+        dynamo_optimizer = torchdynamo.optimize(functools.partial(blade_optimize_dynamo, enable_fp16=precision=="fp16", use_trt=args.trt, backend_args=extra_args))
     elif "ipex" in args.torchdynamo:
         if torch.__version__.find("1.13") != -1:
             if precision == "bfloat16" or precision == "amp":
@@ -75,7 +75,6 @@ def apply_torchdynamo_args(model: 'torchbenchmark.util.model.BenchmarkModel', ar
             dynamo_optimizer = torchdynamo.optimize("ipex")
     else:
         dynamo_optimizer = torchdynamo.optimize(args.torchdynamo)
-
     if args.torchdynamo == "inductor":
         try:
             import torch._inductor as torchinductor

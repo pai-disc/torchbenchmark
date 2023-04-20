@@ -185,10 +185,13 @@ if __name__ == "__main__":
     parser.add_argument("--proper-bs", action='store_true', help="Find the best batch_size for current devices.")
     parser.add_argument("--is-profiling", action='store_true', help="profiling use")
     args, extra_args = parser.parse_known_args()
+    extra_args.append('--cur_model')
+    extra_args.append('')
     args.models = _list_model_paths(args.models)
     results = []
     for element in itertools.product(*[args.models, args.tests, args.devices]):
         model_path, test, device = element
+        extra_args[-1] = (model_path.name)
         if args.proper_bs:
             if test != 'eval':
                 print("Error: Only batch size of eval test is tunable.")
