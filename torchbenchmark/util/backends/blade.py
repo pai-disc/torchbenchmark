@@ -27,6 +27,7 @@ def parse_blade_args(args) -> argparse.Namespace:
 def blade_optimize_dynamo(subgraph, data=None, enable_fp16=False, use_trt=False):
     torch_config = torch_blade.config.Config()
     torch_config.enable_fp16 = enable_fp16
+    torch_config.disc_compile_for_multi_cuda_targets = False
     if use_trt:
         torch_config.optimization_pipeline = torch_blade.tensorrt.backend_name()
     try:
@@ -69,6 +70,7 @@ def blade(model: 'torchbenchmark.util.model.BenchmarkModel', backend_args: List[
     torch_config = torch_blade.config.Config()
     torch_config.enable_fp16 = model.dargs.precision in ["fp16", "amp"]
     torch_config.enable_int8 = args.int8
+    torch_config.disc_compile_for_multi_cuda_targets = False
     if args.trt:
         torch_config.optimization_pipeline = torch_blade.tensorrt.backend_name()
     with torch_config, torch.no_grad():

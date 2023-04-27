@@ -61,6 +61,7 @@ class HuggingFaceModel(BenchmarkModel):
         if name == "hf_BigBird":
             from transformers import BigBirdConfig
         config = eval(class_models[name][2])
+        config.torchscript = True
         if class_models[name][2] == "ReformerConfig()" and not config.num_buckets:
             # silence "config.num_buckets is not set. Setting config.num_buckets to 128"
             config.num_buckets = 128
