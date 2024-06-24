@@ -17,6 +17,7 @@ import torch
 from pprint import pprint
 from typing import List, Optional, Dict, Any, Tuple
 from torchbenchmark import ModelTask
+from torch.profiler import profile, record_function, ProfilerActivity
 
 WARMUP_ROUNDS = 3
 WORKER_TIMEOUT = 3600 # seconds
@@ -25,7 +26,7 @@ NANOSECONDS_PER_MILLISECONDS = 1_000_000.0
 
 import ctypes
         
-def run_one_step(func, device: str, nwarmup=WARMUP_ROUNDS, num_iter=10, is_profiling=False) -> Tuple[float, Optional[Tuple[torch.Tensor]]]:
+def run_one_step(func, device: str, nwarmup=WARMUP_ROUNDS, num_iter=10, is_profiling=False, profiling_file="") -> Tuple[float, Optional[Tuple[torch.Tensor]]]:
     "Run one step of the model, and return the latency in milliseconds."
     # Warm-up `nwarmup` rounds
     for _i in range(nwarmup):
@@ -66,6 +67,12 @@ def run_one_step(func, device: str, nwarmup=WARMUP_ROUNDS, num_iter=10, is_profi
             t1 = time.time_ns()
         result_summary.append((t1 - t0) / NANOSECONDS_PER_MILLISECONDS)
     wall_latency = numpy.median(result_summary)
+    if device == "cpu":
+        with profile(activities=[ProfilerActivity.CPU], record_shapes=True, profile_memory=True) as prof:
+            with record_function("model_inference"):
+                func()
+    with open(profiling_file, 'a') as f:
+      print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10), file=f)
     return wall_latency
 
 @dataclasses.dataclass
@@ -103,7 +110,7 @@ def _validate_devices(devices: str) -> List[str]:
             raise ValueError(f'Invalid device {d} passed into --devices. Expected devices: {valid_devices}.')
     return devices_list
 
-def _run_model_test(model_path: pathlib.Path, test: str, device: str, jit: bool, batch_size: Optional[int], extra_args: List[str], is_profiling: bool=False) -> ModelTestResult:
+def _run_model_test(model_path: pathlib.Path, test: str, device: str, jit: bool, batch_size: Optional[int], extra_args: List[str], is_profiling: bool=False, profiling_file="") -> ModelTestResult:
     assert test == "train" or test == "eval", f"Test must be either 'train' or 'eval', but get {test}."
     result = ModelTestResult(name=model_path.name, test=test, device=device, extra_args=extra_args, batch_size=None, precision="fp32",
                              status="OK", results={})
@@ -127,7 +134,7 @@ def _run_model_test(model_path: pathlib.Path, test: str, device: str, jit: bool,
         result.precision = task.get_model_attribute("dargs", "precision")
         if batch_size and (not result.batch_size == batch_size):
             raise ValueError(f"User specify batch size {batch_size}, but model {result.name} runs with batch size {result.batch_size}. Please report a bug.")
-        result.results["latency_ms"] = run_one_step(task.invoke, device, is_profiling=is_profiling)
+        result.results["latency_ms"] = run_one_step(task.invoke, device, is_profiling=is_profiling, profiling_file=profiling_file)
         # if NUM_BATCHES is set, update to per-batch latencies
         num_batches = task.get_model_attribute("NUM_BATCHES")
         if num_batches:
@@ -184,6 +191,7 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", type=str, default="tb-output.json", help="The default output json file.")
     parser.add_argument("--proper-bs", action='store_true', help="Find the best batch_size for current devices.")
     parser.add_argument("--is-profiling", action='store_true', help="profiling use")
+    parser.add_argument("-p", "--profiling_file", type=str, default="cpu-profiling.log")
     args, extra_args = parser.parse_known_args()
     args.models = _list_model_paths(args.models)
     results = []
@@ -196,10 +204,10 @@ if __name__ == "__main__":
             from scripts.proper_bs import _run_model_test_proper_bs
             r = _run_model_test_proper_bs(model_path, test, device, args.jit, batch_size=args.bs, extra_args=extra_args)
         else:
-            r = _run_model_test(model_path, test, device, args.jit, batch_size=args.bs, extra_args=extra_args, is_profiling=args.is_profiling)
+            r = _run_model_test(model_path, test, device, args.jit, batch_size=args.bs, extra_args=extra_args, is_profiling=args.is_profiling, profiling_file=args.profiling_file)
         
         # write results only when not profiling 
-        if not args.is_profiling:
+        if not args.is_profiling or arg.devices == 'cpu':
             results.append(r)
             results_to_export = list(map(lambda x: dataclasses.asdict(x), results))
             parent_dir = pathlib.Path(args.output).parent

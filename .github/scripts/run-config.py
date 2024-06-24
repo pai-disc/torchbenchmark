@@ -160,6 +160,10 @@ def run_bmconfig(config: BenchmarkModelConfig, repo_path: Path, output_path: Pat
     output_dir = output_path.joinpath("json")
     output_dir.mkdir(exist_ok=True, parents=True)
     cmd.extend(["-o", os.path.join(output_dir.absolute(), f"{config.rewritten_option}.json")])
+    if config.device == "cpu":
+        cpu_profiling_dir = output_path.joinpath("profile")
+        cpu_profiling_dir.mkdir(exist_ok=True, parents=True)
+        cmd.extend(["-p", os.path.join(cpu_profiling_dir.absolute(), f"{config.rewritten_option}.log")])
     print(f"Now running benchmark command: {cmd}.", flush=True)
     if dryrun:
         return
